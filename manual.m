@@ -79,20 +79,24 @@ for img=1:noImages-1
     F = estimateFundamentalMatrix(squeeze(oImageCoords(img,:,:)),squeeze(oImageCoords(img+1,:,:)))
 end
 
-
+currentimgcoords=zeros(noPtsPerImg,2);
+pastimgcoords=zeros(noPtsPerImg,2);
 %Calculate inverse coordinates from homography matrix
 for img=2:noImages
     res=zeros(noPtsPerImg,2);
     for pt=1:noPtsPerImg
-        pastimgcoords=squeeze(oImageCoords(img-1,pt,:))
-        currentimgcoords=squeeze(oImageCoords(img,pt,:))
+        pastimgcoords(pt,:)=squeeze(oImageCoords(img-1,pt,:));
+        currentimgcoords(pt,:)=squeeze(oImageCoords(img,pt,:));
         temp=[squeeze(oImageCoords(img,pt,:)).',1]*inv(realh);
-        temp=temp/temp(3)
-        res(pt,:)=temp(1:2)
+        temp=temp/temp(3);
+        res(pt,:)=temp(1:2);
     end
 end
+currentimgcoords
+res
 
 %Calculate error HA
+homoerror( res, pastimgcoords)
 
 %Calculate epipolar line on image given fundamental matrix between two
 %matrices
@@ -102,13 +106,17 @@ figure;
 title('Epipolar lines obtained from first image coords');
 imshow(imgList(2).name);
 hold on;
-info.Width
-info.Height
 for L= 1: size(lines,1) %length(tree.leaf)
-    [0,-1*lines(L,3)/lines(L,2),info.Width, info.Width*-1*lines(L,1)/lines(L,2)]
-    plot([0,info.Width],[-1*lines(L,3)/lines(L,2), info.Width*-1*lines(L,1)/lines(L,2)],'Color','r','LineWidth',2)
+    [0,-1*lines(L,3)/lines(L,2),info.Width, info.Width*-1*lines(L,1)/lines(L,2)];
+    plot([0,info.Width],[-1*lines(L,3)/lines(L,2), info.Width*-1*lines(L,1)/lines(L,2)],'Color','r','LineWidth',2);
 end
 hold off;
+
+
+
+
+
+
 
 
 
