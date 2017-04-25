@@ -30,8 +30,10 @@ end
 %color = {'red','white','green','magenta'};
 %RGB = insertMarker(RGB,pos,'x','color',color,'size',10);
 %[x,y]=ginput(1);
-
+noImages=size(images,4);
+oImageCoords=manualcollect(images, imgDir, imgList);
 %Display Images and get coords of all clicks
+%{
 figure;
 title(sprintf('Images from %s dataset.',imgDir));
 for L= 1: size(images,4) %length(tree.leaf)
@@ -42,20 +44,22 @@ end
 [x,y]=ginput;
 
 imageCoords=[x,y];
+%}
 
-imageCoords=[253.905405405405,99.5270270270271;241.797297297297,97.7972972972973;297.148648648649,104.716216216216;283.310810810811,109.905405405405;245.256756756757,135.851351351351;229.689189189189,141.040540540541;285.040540540541,139.310810810811;272.932432432433,141.040540540541;217.581081081081,156.608108108108;200.283783783784,158.337837837838;305.797297297297,180.824324324324;288.500000000000,187.743243243243;366.337837837838,192.932432432433;359.418918918919,189.472972972973;369.797297297297,230.986486486487;359.418918918919,234.445945945946;336.932432432433,234.445945945946;328.283783783784,232.716216216216;99.9594594594594,255.202702702703;89.5810810810812,256.932432432433;234.878378378378,258.662162162162;226.229729729730,256.932432432433;182.986486486486,186.013513513514;169.148648648649,187.743243243243;155.310810810811,70.1216216216217;150.121621621622,73.5810810810812;42.8783783783783,47.6351351351352;48.0675675675677,56.2837837837839;30.7702702702702,38.9864864864866;23.8513513513515,38.9864864864866;167.418918918919,26.8783783783784;160.500000000000,30.3378378378378;312.716216216216,52.8243243243244;314.445945945946,54.5540540540541];
-
-
-noImages=size(images,4);
-totalPts=size(imageCoords,1);
-noPtsPerImg=totalPts/noImages;
+%totalPts=size(oImageCoords,2);
+noPtsPerImg=size(oImageCoords,2);%totalPts/noImages;
+%{
 oImageCoords=zeros(noImages, noPtsPerImg,2);
 for idx= 1: noImages
     oImageCoords(idx,:,:)= imageCoords([idx:noImages:totalPts],:);
 end
+%}
 
+%homograph=(noImages-1,
 %Homography matrix estimation
 for img=1:noImages-1
+    homoshow=homograph(squeeze(oImageCoords(img,:,:)),squeeze(oImageCoords(img+1,:,:)));
+    %{
     a=zeros(noPtsPerImg*2,9);
     for pt=1:noPtsPerImg
         xa=oImageCoords(img,pt,1);
@@ -70,8 +74,26 @@ for img=1:noImages-1
     [u,s,v]=svd(b);
     h=v(1:9,1)/v(9,1);
     realh=[h(1:3).';h(4:6).';h(7:9).'];
+    %}
 end
 
+%%Plot present and next dots on same img
+figure;
+title(sprintf('Images with next(blue) and current coords (green) from %s dataset.',imgDir));
+for img=1:noImages-1
+    currimgcoords(:,:)=squeeze(oImageCoords(img,:,:))
+    nextimgcoords(:,:)=squeeze(oImageCoords(img+1,:,:))
+    subplot(1,2,img);
+    imshow(imgList(img).name);
+    hold on;
+    for pt=1:size(currimgcoords,1)
+        plot(currimgcoords(pt,1),currimgcoords(pt,2),'g.','MarkerSize',10)
+        text(currimgcoords(pt,1),currimgcoords(pt,2),int2str(pt),'Color','red')
+        plot(nextimgcoords(pt,1),nextimgcoords(pt,2),'b.','MarkerSize',10)
+        text(nextimgcoords(pt,1),nextimgcoords(pt,2),int2str(pt),'Color','red')
+    end
+    title(sprintf('Image %i',img));
+end
 
 %Fundamental matrix estimation
 squeeze(oImageCoords(img,:,:))
@@ -79,24 +101,27 @@ for img=1:noImages-1
     F = estimateFundamentalMatrix(squeeze(oImageCoords(img,:,:)),squeeze(oImageCoords(img+1,:,:)))
 end
 
-currentimgcoords=zeros(noPtsPerImg,2);
+calcimgcoords=zeros(noPtsPerImg,2);
 pastimgcoords=zeros(noPtsPerImg,2);
 %Calculate inverse coordinates from homography matrix
 for img=2:noImages
+    pastimgcoords(:,:)=squeeze(oImageCoords(img-1,:,:))
+    calcimgcoords(:,:)=reverseproject(squeeze(oImageCoords(img,:,:)),homoshow) 
+    %{
     res=zeros(noPtsPerImg,2);
     for pt=1:noPtsPerImg
         pastimgcoords(pt,:)=squeeze(oImageCoords(img-1,pt,:));
         currentimgcoords(pt,:)=squeeze(oImageCoords(img,pt,:));
-        temp=[squeeze(oImageCoords(img,pt,:)).',1]*inv(realh);
+        temp=[squeeze(oImageCoords(img,pt,:)).',1]*inv(homoshow);
         temp=temp/temp(3);
         res(pt,:)=temp(1:2);
     end
+    %}
 end
-currentimgcoords
-res
+
 
 %Calculate error HA
-homoerror( res, pastimgcoords)
+homoerror( calcimgcoords, pastimgcoords)
 
 %Calculate epipolar line on image given fundamental matrix between two
 %matrices
@@ -111,6 +136,53 @@ for L= 1: size(lines,1) %length(tree.leaf)
     plot([0,info.Width],[-1*lines(L,3)/lines(L,2), info.Width*-1*lines(L,1)/lines(L,2)],'Color','r','LineWidth',2);
 end
 hold off;
+
+
+%Question 2 1b
+figure;
+title(sprintf('Images with correct(blue) and predicted orig coords (green) from %s dataset.',imgDir));
+for img=1:noImages-1
+    homoshow=homograph(squeeze(oImageCoords(img,:,:)),squeeze(oImageCoords(img+1,:,:)));
+    pastimgcoords(:,:)=squeeze(oImageCoords(img,:,:))
+    calcimgcoords(:,:)=reverseproject(squeeze(oImageCoords(img+1,:,:)),homoshow) 
+    
+    subplot(1,2,img);
+    imshow(imgList(img).name);
+    
+    hold on;
+    for pt=1:size(calcimgcoords,1)
+        plot(calcimgcoords(pt,1),calcimgcoords(pt,2),'g.','MarkerSize',10);
+        text(calcimgcoords(pt,1),calcimgcoords(pt,2),int2str(pt),'Color','red');
+        plot(pastimgcoords(pt,1),pastimgcoords(pt,2),'b.','MarkerSize',10);
+        text(pastimgcoords(pt,1),pastimgcoords(pt,2),int2str(pt),'Color','red');
+    end
+    title(sprintf('Image %i',img));
+    hold off;
+    trans=zeros(2);
+    ang=0;
+    scale=0;
+    [trans, ang, scale] = analyse(homoshow)
+end
+
+
+    
+    %{
+    res=zeros(noPtsPerImg,2);
+    for pt=1:noPtsPerImg
+        pastimgcoords(pt,:)=squeeze(oImageCoords(img-1,pt,:));
+        currentimgcoords(pt,:)=squeeze(oImageCoords(img,pt,:));
+        temp=[squeeze(oImageCoords(img,pt,:)).',1]*inv(homoshow);
+        temp=temp/temp(3);
+        res(pt,:)=temp(1:2);
+    end
+    %}
+
+%Manual
+
+
+
+
+
 
 
 
