@@ -1,0 +1,19 @@
+
+function oImageCoords= autocollect(images, threshold, noPts)
+    noImages=size(images,4);
+    imageCoords=zeros(noImages*noPts,2);
+    for i=1:noImages
+        
+        img=squeeze(mean(squeeze(images(:,:,:,i)),3));
+        pts=harris_corner(img,threshold);
+        imageCoords(1:noImages:noPts*noImages,:)pts(1:noPts,
+    end
+    
+    %%%%%%%%%%%%%%%FAKE VALS
+    totalPts=size(imageCoords,1);
+    noPtsPerImg=totalPts/noImages;
+    oImageCoords=zeros(noImages, noPtsPerImg,2);
+    for idx= 1: noImages
+        oImageCoords(idx,:,:)= imageCoords([idx:noImages:totalPts],:);
+    end
+end

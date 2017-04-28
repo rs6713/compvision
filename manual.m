@@ -7,13 +7,14 @@
 %Matlab uses 1-indexing
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 clear; clc;
-imgDir = 'tsukuba/';
+imgDir = 'imgsreal/';
+close ALL;
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%Import all images
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-imgList = dir([imgDir, '*.ppm']);%[imgDir, '*.png']
+imgList = dir([imgDir, '*.jpg']);%[imgDir, '*.png']
 n = length(imgList);
 
 %% Allocate memory
@@ -22,8 +23,8 @@ images = zeros(info.Height, info.Width, 3, 2, 'uint8');%2 SHOULD BE N
 
 %% read images
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%ARTIFICIAL IMAGE NO REDUCE
-for i = 1:3:5%2 SHOULD BE N
-    images(:,:,:,(i-1)/3+1) = imread([imgDir, imgList(i).name]);
+for i = 1:n%2 SHOULD BE N
+    images(:,:,:,i) = imread([imgDir, imgList(i).name]);
 end
 
 %pos   = [120 248;195 246;195 312;120 312];
@@ -31,7 +32,15 @@ end
 %RGB = insertMarker(RGB,pos,'x','color',color,'size',10);
 %[x,y]=ginput(1);
 noImages=size(images,4);
-oImageCoords=manualcollect(images, imgDir, imgList);
+oImageCoords2=manualcollect(images, imgDir, imgList)
+oImageCoords=zeros(2,17,2);
+for i= 1:size(oImageCoords,1)
+    for u=1:size(oImageCoords,2)
+      oImageCoords(i,u,:)=[(700*i)+50*u, 860];  
+    end
+end
+
+%oImageCoords=autocollect(images,0.002,16)%threshold, noPts
 %Display Images and get coords of all clicks
 %{
 figure;
@@ -78,8 +87,9 @@ for img=1:noImages-1
 end
 
 %%Plot present and next dots on same img
-figure;
-title(sprintf('Images with next(blue) and current coords (green) from %s dataset.',imgDir));
+
+tit=sprintf('Images with next(blue) and current coords (green) from %s dataset.',imgDir);
+figure('name',tit,'numbertitle','off')
 for img=1:noImages-1
     currimgcoords(:,:)=squeeze(oImageCoords(img,:,:))
     nextimgcoords(:,:)=squeeze(oImageCoords(img+1,:,:))
@@ -96,7 +106,6 @@ for img=1:noImages-1
 end
 
 %Fundamental matrix estimation
-squeeze(oImageCoords(img,:,:))
 for img=1:noImages-1
     F = estimateFundamentalMatrix(squeeze(oImageCoords(img,:,:)),squeeze(oImageCoords(img+1,:,:)))
 end
@@ -104,9 +113,9 @@ end
 calcimgcoords=zeros(noPtsPerImg,2);
 pastimgcoords=zeros(noPtsPerImg,2);
 %Calculate inverse coordinates from homography matrix
-for img=2:noImages
-    pastimgcoords(:,:)=squeeze(oImageCoords(img-1,:,:))
-    calcimgcoords(:,:)=reverseproject(squeeze(oImageCoords(img,:,:)),homoshow) 
+for img=1:noImages-1
+    pastimgcoords(:,:)=squeeze(oImageCoords(img,:,:))
+    calcimgcoords(:,:)=reverseproject(squeeze(oImageCoords(img+1,:,:)),homoshow) 
     %{
     res=zeros(noPtsPerImg,2);
     for pt=1:noPtsPerImg
@@ -126,9 +135,11 @@ homoerror( calcimgcoords, pastimgcoords)
 %Calculate epipolar line on image given fundamental matrix between two
 %matrices
 lines = epipolarLine(F,squeeze(oImageCoords(img,:,:)));
-figure;
+%figure;
 %A * x + B * y + C = 0.
-title('Epipolar lines obtained from first image coords');
+
+tit='Epipolar lines obtained from first image coords';
+figure('name',tit,'numbertitle','off')
 imshow(imgList(2).name);
 hold on;
 for L= 1: size(lines,1) %length(tree.leaf)
@@ -138,13 +149,27 @@ end
 hold off;
 
 
-%Question 2 1b
+[f,inliers] = estimateFundamentalMatrix(squeeze(oImageCoords(img,:,:)),squeeze(oImageCoords(img+1,:,:)),'NumTrials',4000);
 figure;
-title(sprintf('Images with correct(blue) and predicted orig coords (green) from %s dataset.',imgDir));
+subplot(121);
+I=imread(imgList(2).name);
+imshow(I);
+title('Inliers and Epipolar Lines in First Image'); hold on;
+plot(squeeze(oImageCoords(img,inliers,1)),squeeze(oImageCoords(img,inliers,2)),'go')
+epiLines = epipolarLine(f',squeeze(oImageCoords(img+1,inliers,:)));
+points = lineToBorderPoints(epiLines,size(I));
+line(points(:,[1,3])',points(:,[2,4])');
+
+%Question 2 1b
+tit=sprintf('Images with correct(blue) and predicted orig coords (green), old(red) from %s dataset.',imgDir);
+figure('name',tit,'numbertitle','off')
+%figure;
+%title(sprintf('Images with correct(blue) and predicted orig coords (green) from %s dataset.',imgDir));
+
 for img=1:noImages-1
     homoshow=homograph(squeeze(oImageCoords(img,:,:)),squeeze(oImageCoords(img+1,:,:)));
-    pastimgcoords(:,:)=squeeze(oImageCoords(img,:,:))
-    calcimgcoords(:,:)=reverseproject(squeeze(oImageCoords(img+1,:,:)),homoshow) 
+    pastimgcoords(:,:)=squeeze(oImageCoords(img+1,:,:))
+    calcimgcoords(:,:)=reverseproject(squeeze(oImageCoords(img,:,:)),homoshow) 
     
     subplot(1,2,img);
     imshow(imgList(img).name);
@@ -155,6 +180,7 @@ for img=1:noImages-1
         text(calcimgcoords(pt,1),calcimgcoords(pt,2),int2str(pt),'Color','red');
         plot(pastimgcoords(pt,1),pastimgcoords(pt,2),'b.','MarkerSize',10);
         text(pastimgcoords(pt,1),pastimgcoords(pt,2),int2str(pt),'Color','red');
+
     end
     title(sprintf('Image %i',img));
     hold off;

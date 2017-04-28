@@ -1,5 +1,6 @@
 function prevCoords= reverseproject(coords, homograph)
     prevCoords=zeros(size(coords,1),2);
+    %{
     for pt=1:size(coords,1)
         [coords(pt,:),1]
         inv(homograph)
@@ -7,4 +8,11 @@ function prevCoords= reverseproject(coords, homograph)
         temp=temp/temp(3);
         prevCoords(pt,:)=temp(1:2);
     end
+    %}
+    for pt=1:size(coords,1)
+        temp=[coords(pt,1),coords(pt,2),1]*inv(homograph);
+        temp=temp/temp(3);
+        prevCoords(pt,:)=temp(1:2);
+    end
+    
 end

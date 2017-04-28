@@ -16,6 +16,7 @@ function h= homograph(image1, image2)
     b=a.'*a;
     [u,s,v]=svd(b);
     realh=v(1:9,9)/v(9,9);
+    
     h=reshape(realh,3,3);%[realh(1:3).';realh(4:6).';realh(7:9).']
 
 end
