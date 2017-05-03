@@ -10,7 +10,7 @@ clear; clc;
 imgDir = 'imgsreal/';
 close ALL;
 
-
+noPts=21;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%Import all images
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -20,7 +20,67 @@ n = length(imgList);
 %% Allocate memory
 info = imfinfo([imgDir, imgList(1).name]);
 images = zeros(info.Height, info.Width, 3, 2, 'uint8');%2 SHOULD BE N
+oImageCoords=zeros(2,noPts,2);
 
+%{
+image1 = imread([imgDir, imgList(1).name]);
+image2 = imread([imgDir, imgList(2).name]);
+
+detect = detectSURFFeatures(rgb2gray(squeeze(image1(:,:,:))));
+pt1 = detect.Location;
+[ft1, pt1] = extractFeatures(rgb2gray(squeeze(image1(:,:,:))), pt1);
+
+detect = detectSURFFeatures(rgb2gray(squeeze(image2(:,:,:))));
+pt2 = detect.Location;
+[ft2, pt2] = extractFeatures(rgb2gray(squeeze(image2(:,:,:))), pt2);
+
+%[matched_1, matched_2] = match_features(pt1, pt2, ft1, ft2);
+
+[matched_1, matched_2] = get_matching_SURF(rgb2gray(squeeze(image1(:,:,:))),rgb2gray(squeeze(image2(:,:,:))));
+idx = randperm(length(matched_1));
+nopts=50;
+size(oImageCoords,2)
+oImageCoords=zeros(2,nopts,2);
+oImageCoords(1,:,:)=matched_1(idx(1:nopts),:).Location;
+oImageCoords(2,:,:)=matched_2(idx(1:nopts),:).Location;
+
+    homoshow=estimateGeometricTransform(squeeze(oImageCoords(2,:,:)),squeeze(oImageCoords(1,:,:)),'projective');
+    pastimgcoords(:,:)=squeeze(oImageCoords(2,:,:));
+    calcimgcoords(:,:)=reverseproject(squeeze(oImageCoords(1,:,:)),homoshow.T) ;
+    errrrroooor=homoerror(pastimgcoords,calcimgcoords)
+
+        figure;
+    title('Predicted points');
+    subplot(1,2,1);
+    imshow(imgList(2).name);
+    errorMargin=5.0;
+    hold on;
+    calcCol='g.';
+    pastCol='b.';
+    for pt=1:size(calcimgcoords,1)
+        line([pastimgcoords(pt,1),calcimgcoords(pt,1)],[pastimgcoords(pt,2),calcimgcoords(pt,2)]);
+        if(errorMargin^2>= ((calcimgcoords(pt,1)-pastimgcoords(pt,1))^2+(calcimgcoords(pt,2)-pastimgcoords(pt,2))^2))
+            calcCol= 'g.';
+            pastCol= 'g.';
+            text(pastimgcoords(pt,1),pastimgcoords(pt,2),int2str(pt),'Color','green');
+        else
+            calcCol='r.';
+            pastCol='b.'; 
+            text(calcimgcoords(pt,1),calcimgcoords(pt,2),int2str(pt),'Color','red');
+            text(pastimgcoords(pt,1),pastimgcoords(pt,2),int2str(pt),'Color','red');
+            sprintf('errormargin %d', errorMargin);
+            sprintf('coords %d, %d, %d, %d', calcimgcoords(pt,1),pastimgcoords(pt,1),calcimgcoords(pt,2),pastimgcoords(pt,2));
+            sprintf('error %d', ((calcimgcoords(pt,1)-pastimgcoords(pt,1))^2+(calcimgcoords(pt,2)-pastimgcoords(pt,2))^2));
+            
+            
+        end
+        plot(calcimgcoords(pt,1),calcimgcoords(pt,2),calcCol,'MarkerSize',10);
+        plot(pastimgcoords(pt,1),pastimgcoords(pt,2),pastCol,'MarkerSize',10);
+        
+    end
+    %}
+    
+    
 %% read images
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%ARTIFICIAL IMAGE NO REDUCE
 for i = 1:n%2 SHOULD BE N
@@ -32,15 +92,192 @@ end
 %RGB = insertMarker(RGB,pos,'x','color',color,'size',10);
 %[x,y]=ginput(1);
 noImages=size(images,4);
-oImageCoords2=manualcollect(images, imgDir, imgList)
-oImageCoords=zeros(2,17,2);
+oImageCoords=zeros(2,noPts,2);
 for i= 1:size(oImageCoords,1)
     for u=1:size(oImageCoords,2)
       oImageCoords(i,u,:)=[(700*i)+50*u, 860];  
     end
 end
+%added=manualcollect(images, imgDir, imgList);
+%oImageCoords(:,1:length(added),:)=added(:,:,:);
+%oImageCoords=added;
 
-%oImageCoords=autocollect(images,0.002,16)%threshold, noPts
+%load('hello.mat');
+
+%oImageCoords=autocollect(images,0.005,16)%threshold, noPts
+
+%{
+detect = detectSURFFeatures(rgb2gray(squeeze(images(:,:,:,1))));
+pt1 = detect.Location;
+[ft1, pt1] = extractFeatures(rgb2gray(squeeze(images(:,:,:,1))), pt1);
+
+detect = detectSURFFeatures(rgb2gray(squeeze(images(:,:,:,2))));
+pt2 = detect.Location;
+[ft2, pt2] = extractFeatures(rgb2gray(squeeze(images(:,:,:,2))), pt2);
+%}
+
+%[matched_1, matched_2] = match_features(pt1, pt2, ft1, ft2);
+[matched_1, matched_2] = get_matching_SURF(rgb2gray(squeeze(images(:,:,:,1))),rgb2gray(squeeze(images(:,:,:,2))));
+
+
+idx = randperm(length(matched_1));
+size(oImageCoords,2)
+oImageCoords=zeros(2,length(matched_1),2);
+oImageCoords(1,:,:)=matched_1(idx,:).Location;
+oImageCoords(2,:,:)=matched_2(idx,:).Location;
+
+
+
+u=1;
+haerror=zeros(1000,1);
+outliers=zeros(10000,1);
+errorMargin=100;%haerror(u)*1.5
+randy= randperm(size(oImageCoords,2));
+for i= 4:size(oImageCoords,2)
+    goodIndexes=[];
+    homoshow=estimateGeometricTransform(squeeze(oImageCoords(2,randy(1:i),:)),squeeze(oImageCoords(1,randy(1:i),:)),'projective');
+    homoshow=homoshow.T;
+    pastimgcoords(:,:)=squeeze(oImageCoords(2,:,:));
+    calcimgcoords(:,:)=reverseproject(squeeze(oImageCoords(1,:,:)),homoshow) ;
+    homoerror(pastimgcoords,calcimgcoords);
+    haerror(u)=homoerror(pastimgcoords,calcimgcoords);
+    for pt=1:size(calcimgcoords,1)
+        if((errorMargin)^2<= ((calcimgcoords(pt,1)-pastimgcoords(pt,1))^2+(calcimgcoords(pt,2)-pastimgcoords(pt,2))^2))
+            outliers(u)=outliers(u)+1;
+        else
+            goodIndexes = cat(2,goodIndexes,[pt]);
+            %goodIndexes=[goodIndexes(:), pt];%Pts that are not outliers
+        end
+    end
+    
+    u=u+1;
+end
+figure;
+title('Number of pair correspondences used, vs HA error and No. Outliers');
+
+yyaxis left
+plot([4:size(oImageCoords,2)], haerror(1:size(oImageCoords,2)-3),'Color','r','LineWidth',2);
+xlabel('Number of corresponding interest point pairs') % x-axis label
+ylabel('HA Error') % y-axis label
+yyaxis right
+plot([4:size(oImageCoords,2)], outliers(1:size(oImageCoords,2)-3),'Color','b','LineWidth',2);
+ylabel('No. Outliers') % y-axis label
+legend('y = HA error','y = No. Outliers')
+
+[val, idx] = max(outliers);%get index max no outliers
+homoshow=estimateGeometricTransform(squeeze(oImageCoords(2,randy(1:idx+3),:)),squeeze(oImageCoords(1,randy(1:idx+3),:)),'projective');
+homoshow=homoshow.T;
+pastimgcoords(:,:)=squeeze(oImageCoords(2,:,:));
+calcimgcoords(:,:)=reverseproject(squeeze(oImageCoords(1,:,:)),homoshow) ;
+tambien=homoerror(pastimgcoords,calcimgcoords)
+outliers1=0;
+goodIndexes=[];
+for pt=1:size(calcimgcoords,1)
+	if((errorMargin)^2<= ((calcimgcoords(pt,1)-pastimgcoords(pt,1))^2+(calcimgcoords(pt,2)-pastimgcoords(pt,2))^2))
+        outliers1=outliers1+1;
+    else
+        goodIndexes = cat(2,goodIndexes,[pt]);
+            %goodIndexes=[goodIndexes(:), pt];%Pts that are not outliers
+    end
+end
+    figure;
+    title('Predicted points');
+    subplot(1,2,1);
+    imshow(imgList(1).name);
+    errorMargin=5.0;
+    hold on;
+    calcCol='g.';
+    pastCol='b.';
+    for pt=1:size(calcimgcoords,1)
+        line([pastimgcoords(pt,1),calcimgcoords(pt,1)],[pastimgcoords(pt,2),calcimgcoords(pt,2)]);
+        if(errorMargin^2>= ((calcimgcoords(pt,1)-pastimgcoords(pt,1))^2+(calcimgcoords(pt,2)-pastimgcoords(pt,2))^2))
+            calcCol= 'g.';
+            pastCol= 'g.';
+            text(pastimgcoords(pt,1),pastimgcoords(pt,2),int2str(pt),'Color','green');
+        else
+            calcCol='r.';
+            pastCol='b.'; 
+            text(calcimgcoords(pt,1),calcimgcoords(pt,2),int2str(pt),'Color','red');
+            text(pastimgcoords(pt,1),pastimgcoords(pt,2),int2str(pt),'Color','red');
+            sprintf('errormargin %d', errorMargin);
+            sprintf('coords %d, %d, %d, %d', calcimgcoords(pt,1),pastimgcoords(pt,1),calcimgcoords(pt,2),pastimgcoords(pt,2));
+            sprintf('error %d', ((calcimgcoords(pt,1)-pastimgcoords(pt,1))^2+(calcimgcoords(pt,2)-pastimgcoords(pt,2))^2));
+            
+            
+        end
+        plot(calcimgcoords(pt,1),calcimgcoords(pt,2),calcCol,'MarkerSize',10);
+        plot(pastimgcoords(pt,1),pastimgcoords(pt,2),pastCol,'MarkerSize',10);
+        
+    end
+
+ %%with only inlying points
+ homoshow=estimateGeometricTransform(squeeze(oImageCoords(2,goodIndexes,:)),squeeze(oImageCoords(1,goodIndexes,:)),'projective')
+homoshow=homoshow.T
+pastimgcoords(:,:)=squeeze(oImageCoords(2,:,:))
+calcimgcoords(:,:)=reverseproject(squeeze(oImageCoords(1,:,:)),homoshow) 
+hola=homoerror(pastimgcoords,calcimgcoords)
+outliers2=0;
+goodIndexes2=[];
+for pt=1:size(calcimgcoords,1)
+	if((errorMargin)^2<= ((calcimgcoords(pt,1)-pastimgcoords(pt,1))^2+(calcimgcoords(pt,2)-pastimgcoords(pt,2))^2))
+        outliers2=outliers2+1;
+    else
+        goodIndexes2 = cat(2,goodIndexes2,[pt]);
+            %goodIndexes=[goodIndexes(:), pt];%Pts that are not outliers
+    end
+end
+    figure;
+    title('Predicted points only inliers');
+    subplot(1,2,1);
+    imshow(imgList(1).name);
+    errorMargin=5.0;
+    hold on;
+    calcCol='g.';
+    pastCol='b.';
+    for pt=1:size(calcimgcoords,1)
+        line([pastimgcoords(pt,1),calcimgcoords(pt,1)],[pastimgcoords(pt,2),calcimgcoords(pt,2)]);
+        if(errorMargin^2>= ((calcimgcoords(pt,1)-pastimgcoords(pt,1))^2+(calcimgcoords(pt,2)-pastimgcoords(pt,2))^2))
+            calcCol= 'g.';
+            pastCol= 'g.';
+            text(pastimgcoords(pt,1),pastimgcoords(pt,2),int2str(pt),'Color','green');
+        else
+            calcCol='r.';
+            pastCol='b.'; 
+            text(calcimgcoords(pt,1),calcimgcoords(pt,2),int2str(pt),'Color','red');
+            text(pastimgcoords(pt,1),pastimgcoords(pt,2),int2str(pt),'Color','red');
+            sprintf('errormargin %d', errorMargin);
+            sprintf('coords %d, %d, %d, %d', calcimgcoords(pt,1),pastimgcoords(pt,1),calcimgcoords(pt,2),pastimgcoords(pt,2));
+            sprintf('error %d', ((calcimgcoords(pt,1)-pastimgcoords(pt,1))^2+(calcimgcoords(pt,2)-pastimgcoords(pt,2))^2));
+            
+            
+        end
+        plot(calcimgcoords(pt,1),calcimgcoords(pt,2),calcCol,'MarkerSize',10);
+        plot(pastimgcoords(pt,1),pastimgcoords(pt,2),pastCol,'MarkerSize',10);
+        
+    end
+figure;
+    
+ %{
+detect = detectSURFFeatures(rgb2gray(imresize(squeeze(images(:,:,:,1)),0.5)));
+pt1 = detect.Location;
+[ft1, pt1] = extractFeatures(rgb2gray(imresize(squeeze(images(:,:,:,1)),0.5)), pt1);
+
+detect = detectSURFFeatures(rgb2gray(squeeze(images(:,:,:,1))));
+pt2 = detect.Location;
+[ft2, pt2] = extractFeatures(rgb2gray(squeeze(images(:,:,:,1))), pt2);
+
+[matched_1, matched_2] = match_features(pt1, pt2, ft1, ft2);
+idx = randperm(length(matched_1));
+size(oImageCoords,2)
+oImageCoords(1,:,:)=matched_1(idx(1:noPts),:);
+oImageCoords(2,:,:)=matched_2(idx(1:noPts),:);
+%}
+%oImageCoords=manualcollect(images, imgDir, imgList);
+
+
+
+
+%oImageCoords=cat(3,matched_1,matched_2);
 %Display Images and get coords of all clicks
 %{
 figure;
@@ -96,11 +333,14 @@ for img=1:noImages-1
     subplot(1,2,img);
     imshow(imgList(img).name);
     hold on;
+
     for pt=1:size(currimgcoords,1)
+        line([currimgcoords(pt,1),nextimgcoords(pt,1)],[currimgcoords(pt,2),nextimgcoords(pt,2)]);
         plot(currimgcoords(pt,1),currimgcoords(pt,2),'g.','MarkerSize',10)
         text(currimgcoords(pt,1),currimgcoords(pt,2),int2str(pt),'Color','red')
         plot(nextimgcoords(pt,1),nextimgcoords(pt,2),'b.','MarkerSize',10)
         text(nextimgcoords(pt,1),nextimgcoords(pt,2),int2str(pt),'Color','red')
+        
     end
     title(sprintf('Image %i',img));
 end
@@ -158,7 +398,7 @@ title('Inliers and Epipolar Lines in First Image'); hold on;
 plot(squeeze(oImageCoords(img,inliers,1)),squeeze(oImageCoords(img,inliers,2)),'go')
 epiLines = epipolarLine(f',squeeze(oImageCoords(img+1,inliers,:)));
 points = lineToBorderPoints(epiLines,size(I));
-line(points(:,[1,3])',points(:,[2,4])');
+line(points(:,[1,3])',points(:,[2,4])','LineWidth',1);
 
 %Question 2 1b
 tit=sprintf('Images with correct(blue) and predicted orig coords (green), old(red) from %s dataset.',imgDir);
@@ -168,27 +408,48 @@ figure('name',tit,'numbertitle','off')
 
 for img=1:noImages-1
     homoshow=homograph(squeeze(oImageCoords(img,:,:)),squeeze(oImageCoords(img+1,:,:)));
+    homoshow=estimateGeometricTransform(squeeze(oImageCoords(2,:,:)),squeeze(oImageCoords(1,:,:)),'projective')
+    homoshow=homoshow.T
     pastimgcoords(:,:)=squeeze(oImageCoords(img+1,:,:))
     calcimgcoords(:,:)=reverseproject(squeeze(oImageCoords(img,:,:)),homoshow) 
     
     subplot(1,2,img);
     imshow(imgList(img).name);
-    
+    errorMargin=5.0;
     hold on;
+    calcCol='g.';
+    pastCol='b.';
     for pt=1:size(calcimgcoords,1)
-        plot(calcimgcoords(pt,1),calcimgcoords(pt,2),'g.','MarkerSize',10);
-        text(calcimgcoords(pt,1),calcimgcoords(pt,2),int2str(pt),'Color','red');
-        plot(pastimgcoords(pt,1),pastimgcoords(pt,2),'b.','MarkerSize',10);
-        text(pastimgcoords(pt,1),pastimgcoords(pt,2),int2str(pt),'Color','red');
-
+        line([pastimgcoords(pt,1),calcimgcoords(pt,1)],[pastimgcoords(pt,2),calcimgcoords(pt,2)]);
+        if(errorMargin^2>= ((calcimgcoords(pt,1)-pastimgcoords(pt,1))^2+(calcimgcoords(pt,2)-pastimgcoords(pt,2))^2))
+            calcCol= 'g.';
+            pastCol= 'g.';
+            text(pastimgcoords(pt,1),pastimgcoords(pt,2),int2str(pt),'Color','green');
+        else
+            calcCol='r.';
+            pastCol='b.'; 
+            text(calcimgcoords(pt,1),calcimgcoords(pt,2),int2str(pt),'Color','red');
+            text(pastimgcoords(pt,1),pastimgcoords(pt,2),int2str(pt),'Color','red');
+            sprintf('errormargin %d', errorMargin);
+            sprintf('coords %d, %d, %d, %d', calcimgcoords(pt,1),pastimgcoords(pt,1),calcimgcoords(pt,2),pastimgcoords(pt,2));
+            sprintf('error %d', ((calcimgcoords(pt,1)-pastimgcoords(pt,1))^2+(calcimgcoords(pt,2)-pastimgcoords(pt,2))^2));
+            
+            
+        end
+        plot(calcimgcoords(pt,1),calcimgcoords(pt,2),calcCol,'MarkerSize',10);
+        plot(pastimgcoords(pt,1),pastimgcoords(pt,2),pastCol,'MarkerSize',10);
+        
     end
     title(sprintf('Image %i',img));
     hold off;
     trans=zeros(2);
     ang=0;
     scale=0;
-    [trans, ang, scale] = analyse(homoshow)
+    [trans, ang, scale] = analyse(homoshow.')
 end
+
+%a=cp2tform(squeeze(oImageCoords(1,:,:)),squeeze(oImageCoords(2,:,:)),'affine')
+%[trans, ang, scale] = analyseaffine(a)
 
 
     
@@ -204,6 +465,11 @@ end
     %}
 
 %Manual
+
+t = estimateGeometricTransform(squeeze(oImageCoords(1,:,:)),squeeze(oImageCoords(2,:,:)),'affine')
+affine= t.T;
+affine= affine.';
+[trans2, ang2, scale2] = analyseaffine(affine)
 
 
 

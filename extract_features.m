@@ -1,3 +1,4 @@
+%
 function ft = extract_features(I, x, y, bins)
 
 ft = zeros(size(x,1),bins);

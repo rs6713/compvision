@@ -6,8 +6,10 @@ function oImageCoords= autocollect(images, threshold, noPts)
         
         img=squeeze(mean(squeeze(images(:,:,:,i)),3));
         [x,y]=harris_corner(img,threshold);
-        imageCoords(i:noImages:(noPts*noImages),1)=x(1:noPts);
-        imageCoords(i:noImages:(noPts*noImages),2)=y(1:noPts);
+        length(x)
+        idx = randperm(length(x))
+        imageCoords(i:noImages:(noPts*noImages),1)=x(idx(1:16));%x(1:noPts);
+        imageCoords(i:noImages:(noPts*noImages),2)=y(idx(1:16));%y(1:noPts);
     end
     imageCoords
     %%%%%%%%%%%%%%%FAKE VALS
